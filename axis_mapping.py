@@ -11,7 +11,7 @@ from generate.config import CLASS_MAPPING
 from gap_detection import detect_and_fill_gaps
 from candlestick_analysis import extract_ohlc_from_candlestick, determine_open_close_from_color
 
-CONFIDENCE_THRESHOLD = 0.85
+CONFIDENCE_THRESHOLD = 0.75
 
 
 def get_pixel_to_price_map_easyocr(full_image_path, y_axis_bbox, confidence_threshold=CONFIDENCE_THRESHOLD, verbose=True):
