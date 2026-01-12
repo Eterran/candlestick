@@ -11,7 +11,7 @@ from generate.config import CLASS_MAPPING
 from gap_detection import detect_and_fill_gaps
 from candlestick_analysis import extract_ohlc_from_candlestick, determine_open_close_from_color
 
-CONFIDENCE_THRESHOLD = 0.75
+CONFIDENCE_THRESHOLD = 0.85
 
 
 def get_pixel_to_price_map_easyocr(full_image_path, y_axis_bbox, confidence_threshold=CONFIDENCE_THRESHOLD, verbose=True):
@@ -396,15 +396,33 @@ def extract_structured_data(predictions, image_path, model, verbose=True):
         if verbose:
             print(f"\nWarning: Ground truth not found at {groundtruth_path}")
 
+    # Create a list of candlestick info dicts aligned with candlestick_boxes
+    # If gap filling ran, 'filled_candlesticks' exists. If not, we need to create a basic list.
+    candlestick_info_list = []
+    
+    if 'filled_candlesticks' in locals():
+         candlestick_info_list = filled_candlesticks
+    else:
+         # Fallback if no gap filling logic ran (e.g. <3 candles)
+         candlestick_info_list = [{'bbox': box, 'interpolated': False} for box in candlestick_boxes]
+
     ohlc_results = []
     
     if price_mapper and candlestick_boxes:
         if verbose:
             print("\n--- OHLC Extraction (Body Detection Method) ---")
-        candlestick_boxes.sort(key=lambda box: box[0])
+        
+        # candlestick_boxes is already sorted/updated from gap filling
+        # and candlestick_info_list corresponds to it 1-to-1 if we are careful
+        # actually, candlestick_boxes = [c['bbox'] for c in filled_candlesticks] ensures alignment
+        
         img = Image.open(image_path)
 
         for i, candle_box in enumerate(candlestick_boxes):
+            # Get info from the corresponding dict
+            candle_info = candlestick_info_list[i] if i < len(candlestick_info_list) else {}
+            is_interpolated = candle_info.get('interpolated', False)
+
             # Extract OHLC using body detection
             # detailed debug only for first few
             ohlc_data = extract_ohlc_from_candlestick(img, candle_box, price_mapper, debug=(verbose and i<3))
@@ -436,7 +454,8 @@ def extract_structured_data(predictions, image_path, model, verbose=True):
                 'high': high_price,
                 'low': low_price,
                 'close': close_price,
-                'confidence': ohlc_data['confidence']
+                'confidence': ohlc_data['confidence'],
+                'Interpolated': is_interpolated
             }
             ohlc_results.append(candle_result)
 
@@ -461,6 +480,7 @@ def extract_structured_data(predictions, image_path, model, verbose=True):
     return {
         'component_boxes': component_boxes,
         'candlestick_boxes': candlestick_boxes,
+        'candlestick_info': candlestick_info_list,
         'price_mapper': price_mapper,
         'time_mapper': time_mapper,
         'ground_truth_df': ground_truth_df,

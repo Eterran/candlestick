@@ -10,7 +10,7 @@ from generate.config import CLASS_MAPPING, COLOR_MAPPING
 from axis_mapping import get_pixel_to_price_map_easyocr
 
 
-def draw_predictions_with_labels(image_path, predictions, model, save_path=None):
+def draw_predictions_with_labels(image_path, predictions, model, chart_data=None, save_path=None):
     """Draw predicted bounding boxes with class labels and confidence scores"""
     id_to_class_map = {v: k for k, v in CLASS_MAPPING.items()}
     
@@ -33,12 +33,17 @@ def draw_predictions_with_labels(image_path, predictions, model, save_path=None)
     
     print(f"\nDrawing {len(boxes)} predicted objects:")
     
+    # Draw standard predictions (Skip candlesticks if we have chart_data with detailed info)
     for i, box in enumerate(boxes):
-        confidence = confidences[i]
         class_id = int(class_ids[i])
+        class_name = id_to_class_map.get(class_id, 'Unknown')
+        
+        if chart_data and class_name == 'candlestick':
+            continue
+
+        confidence = confidences[i]
         
         x1, y1, x2, y2 = box
-        class_name = id_to_class_map.get(class_id, 'Unknown')
         color = COLOR_MAPPING.get(class_name, 'yellow')
         
         draw.rectangle([x1, y1, x2, y2], outline=color, width=3)
@@ -47,6 +52,29 @@ def draw_predictions_with_labels(image_path, predictions, model, save_path=None)
         text_bbox = draw.textbbox((x1, y1 - 25), label, font=font)
         draw.rectangle(text_bbox, fill=color, outline=color)
         draw.text((x1, y1 - 25), label, fill='white', font=font)
+
+    # Draw candlesticks from chart_data with specific coloring for interpolated ones
+    if chart_data and 'candlestick_info' in chart_data:
+        candlesticks = chart_data['candlestick_info']
+        print(f"Drawing {len(candlesticks)} candlesticks (including interpolated)")
+        
+        for candle in candlesticks:
+            x1, y1, x2, y2 = candle['bbox']
+            is_interpolated = candle.get('interpolated', False)
+            
+            if is_interpolated:
+                color = 'cyan'
+                label = "Interpolated"
+            else:
+                color = COLOR_MAPPING.get('candlestick', 'green')
+                label = "Candle"
+            
+            draw.rectangle([x1, y1, x2, y2], outline=color, width=3)
+            
+            # Optional: Draw label only if needed, or maybe just color is enough
+            # text_bbox = draw.textbbox((x1, y1 - 15), label, font=font)
+            # draw.rectangle(text_bbox, fill=color, outline=color)
+            # draw.text((x1, y1 - 15), label, fill='black', font=font)
     
     if save_path:
         img.save(save_path)

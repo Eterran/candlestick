@@ -71,7 +71,7 @@ def extraction_page():
     with col1:
         img_file = st.file_uploader('Upload an image', type=['png', 'jpg', 'jpeg'])
     with col2:
-        st.write("## ") # Spacing to align with uploader
+        st.write("##### ") # Spacing to align with uploader
         pasted_img = paste_image_button("Paste Image", key="paster")
 
     # Create sidebar for configuration (only for extraction page)
@@ -80,9 +80,10 @@ def extraction_page():
         st.subheader("Time Inference")
         use_time = st.checkbox("Generate Time Axis", value=True)
         
-        start_date = st.date_input("Start Date", value=pd.to_datetime("today"))
-        start_time = st.time_input("Start Time", value=pd.to_datetime("09:30").time())
-        interval_str = st.selectbox("Interval", ["1h", "1d", "15m", "30m", "5m", "1m"], index=0)
+        if use_time:
+            start_date = st.date_input("Start Date", value=pd.to_datetime("today"))
+            start_time = st.time_input("Start Time", value=pd.to_datetime("09:30").time())
+            interval_str = st.selectbox("Interval", ["1h", "1d", "15m", "30m", "5m", "1m"], index=0)
 
     image_to_process = None
     if img_file is not None:
@@ -107,7 +108,8 @@ def extraction_page():
 
         # Display Original Image
         st.subheader("Original Image")
-        st.image(image_to_process, use_container_width=True)
+        _, col_img, _ = st.columns([1, 10, 1])
+        col_img.image(image_to_process, use_container_width=True)
 
         if st.button("Run Extraction Pipeline", type="primary"):
             st.divider()
@@ -137,14 +139,14 @@ def extraction_page():
                         
                         if predictions:
                             # Bounding Boxes
-                            annotated_img = draw_predictions_with_labels(temp_image_path, predictions, model_obj)
+                            annotated_img = draw_predictions_with_labels(temp_image_path, predictions, model_obj, chart_data=chart_data)
                             st.image(annotated_img, caption="Detected Components", use_container_width=True)
                             
                             # Y-Axis Debug
                             if chart_data:
                                 y_axis_box = chart_data.get('component_boxes', {}).get('y_axis')
                                 if y_axis_box is not None:
-                                    with st.expander("Show Y-Axis OCR Details"):
+                                    with st.expander("Show Y-Axis OCR Details", expanded=True):
                                         ocr_img, _ = visualize_y_axis_mapping_with_ocr(temp_image_path, y_axis_box, chart_data)
                                         if ocr_img:
                                             st.image(ocr_img, caption="Y-Axis Mapping Logic", use_container_width=True)
@@ -159,6 +161,8 @@ def extraction_page():
                             ohlc_data = chart_data.get('ohlc_data', [])
                             if ohlc_data:
                                 df = pd.DataFrame(ohlc_data)
+                                if 'confidence' in df.columns:
+                                    df = df.drop(columns=['confidence'])
                                 
                                 # --- Add Time Column ---
                                 if use_time:
@@ -201,7 +205,7 @@ def extraction_page():
                                 st.plotly_chart(fig, use_container_width=True)
                                 
                                 # Data Table
-                                st.dataframe(df, use_container_width=True, height=300)
+                                st.dataframe(df, use_container_width=True)
                                 
                                 # CSV Download
                                 csv = df.to_csv(index=False).encode('utf-8')
@@ -229,10 +233,10 @@ def extraction_page():
         # os.remove(temp_image_path) # Commented out to allow debugging if needed, or re-enable production cleanup
 
 # --- Main Navigation ---
-page_names_to_funcs = {
-    "Introduction": intro_page,
-    "Extraction Tool": extraction_page,
-}
+tab1, tab2 = st.tabs(["Introduction", "Extraction Tool"])
 
-selected_page = st.sidebar.radio("Go to", list(page_names_to_funcs.keys()))
-page_names_to_funcs[selected_page]()
+with tab1:
+    intro_page()
+
+with tab2:
+    extraction_page()
